@@ -16,7 +16,7 @@ This document records the findings on [PR #1](https://github.com/elnerribeiro/se
 
 | Recommendation | Analysis and decision | Implementation and regression check |
 | --- | --- | --- |
-| Commit merge-time CI | Local green checks do not protect future changes. A pull-request workflow was appropriate and does not require external credentials. | `.github/workflows/ci.yml` runs race-enabled Go tests, `go vet`, 80% coverage gates for both Go packages, web lint/unit/build/Storybook checks, BDD definition validation and dependency audit, the full browser suite, and Compose image builds. |
+| Commit merge-time CI | Local green checks do not protect future changes. A pull-request workflow was appropriate and does not require external credentials. The initial hosted run stalled installing browser dependencies after the `ubuntu-latest` image migrated to Ubuntu 26.04. Pinning the runner to the supported Ubuntu 24.04 image makes the environment predictable. | `.github/workflows/ci.yml` runs race-enabled Go tests, `go vet`, 80% coverage gates for both Go packages, web lint/unit/build/Storybook checks, BDD definition validation and dependency audit, the full browser suite, and Compose image builds on Ubuntu 24.04. |
 | Run each browser flow at each required size | Checking only the happy path at the viewport matrix left error recovery and input modes exposed to different layout regressions. | Every Gherkin integrated scenario is now an outline covering `1080x1920`, `1366x768`, and `1920x1080`. Each flow checks shell fit and relevant content containment; long results also cover `320x720`. |
 | Log client exceptions safely | Network and JSON parsing failures were handled without diagnostics, but logging an exception object or expression would expose implementation details or user input. A browser-capable structured logger is viable. | Added `@logtape/logtape` and `web/src/clientLogger.ts`. Events contain only `operation` and a finite `errorType` category; the expression, raw exception, and response body are never passed to the logger. Tests cover network failure, malformed JSON, and timeout events. LogTape documents browser support and structured logs in its [quick start](https://logtape.org/manual/start); the [changelog](https://logtape.org/changelog) records releases through October 2026. |
 | Bound stalled requests and show progress | Without cancellation, one unresolved fetch leaves the input and keypad disabled forever. A fixed deadline provides a clear recovery boundary without introducing user configuration. | Fetch uses an `AbortController` with a 10-second deadline. The header shows “Calculating…” while pending, then timeout guidance while preserving the expression and re-enabling controls. A controlled pending-fetch test verifies timeout recovery. |
@@ -32,7 +32,7 @@ This document records the findings on [PR #1](https://github.com/elnerribeiro/se
 
 ## Verification commands
 
-The committed workflow is the authoritative merge-time validation. To run the equivalent local checks:
+The committed workflow is the authoritative merge-time validation on Ubuntu 24.04. To run the equivalent local checks:
 
 ```sh
 go test -race ./...
@@ -65,4 +65,4 @@ docker compose build
 - `docker compose build` and `./scripts/containers.sh start`: passed; both services are running.
 - External Edge checked long-result containment and global width at `1080x1920`, `1366x768`, `1920x1080`, and `320x720`; no console errors were observed. The full Gherkin suite also validates all error, keypad, keyboard, and happy-path flows at each required viewport.
 
-The local checks validate the same commands committed in CI. GitHub Actions will report the merge-time run after this branch update is pushed.
+The local checks validate the same commands committed in CI. GitHub Actions reports the merge-time run after each branch update is pushed.

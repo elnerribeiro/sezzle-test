@@ -47,8 +47,9 @@ h1 { margin: 11px 0 7px; color: var(--brand-purple); font-size: clamp(30px, 4vw,
 .display-wrap label { display: block; color: var(--muted); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .1em; text-transform: uppercase; }
 .display-wrap input { display: block; width: 100%; min-height: 48px; padding: 2px 0; border: 0; outline: 0; background: transparent; color: var(--brand-purple); font: 500 clamp(24px, 4vw, 34px) ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; }
 .display-wrap input::placeholder { color: #b8aec4; }
-.result-line { display: flex; justify-content: space-between; align-items: center; padding-top: 9px; border-top: 1px solid var(--border); color: var(--muted); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .11em; }
-.result-line output { color: var(--brand-teal); font-size: 17px; font-weight: 600; letter-spacing: 0; }
+.result-line { display: flex; min-width: 0; justify-content: space-between; align-items: flex-start; gap: 8px; padding-top: 9px; border-top: 1px solid var(--border); color: var(--muted); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .11em; }
+.result-line > span { flex: 0 0 auto; }
+.result-line output { flex: 1 1 auto; min-width: 0; max-width: calc(100% - 64px); color: var(--brand-teal); font-size: 17px; font-weight: 600; letter-spacing: 0; text-align: right; overflow-wrap: anywhere; }
 .keypad { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-top: 17px; }
 .key { min-width: 0; height: 54px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--brand-purple); cursor: pointer; font-size: 18px; transition: transform .12s ease, background .12s ease, border-color .12s ease; }
 .key:hover:not(:disabled) { transform: translateY(-1px); border-color: #c9b8dc; background: #fbf9fd; }

@@ -2,6 +2,8 @@
 
 This file records the user's project prompts and the choices that set the initial implementation scope.
 
+## Design and implementation phases - Codex, GPT-6 Luna High
+
 1. “Let's start creating this project. Check AGENTS.md and OVERVIEW.md, ask for any clarification and then let's start to build.”
 2. Initial scope: “Include all optional operations”.
 3. Calculator behavior: “Full keypad expression entry”.
@@ -11,3 +13,12 @@ This file records the user's project prompts and the choices that set the initia
 7. “Document the code on the .go, .ts and .tsx files.”
 8. “Create docker containers for both backend and frontend. Create a script for start and stop both. Document this on README.”
 9. “Create a doc with Mermaid diagrams, explaining flow, states, sequences, activities and the overall architecture. With that done, check one more time the project and create a PR.”
+
+## Clean chat, review and tests - Codex, GPT 6.1 Sol High
+
+1. “You are a Senior Software Architect and designated code reviewer/tester for this PR (https://github.com/elnerribeiro/sezzle-test/pull/1). Analyze everything, comment any possible changes or better ways, and put the comments on Github.”
+
+## Back to initial context
+
+1.
+2. “Check the comments on the PR. Analyze meaning, code and viability. Implement them. Document everything and change docs accordingly.”

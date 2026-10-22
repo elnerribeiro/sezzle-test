@@ -3,6 +3,7 @@
  * to the Go API, and presents safe results and recovery messages.
  */
 import { useEffect, useState, type FormEvent } from 'react';
+import { logClientFailure } from './clientLogger';
 import './app.css';
 
 /** Rows of visible keypad labels; the empty final cell is rendered as a spacer. */
@@ -17,6 +18,9 @@ const keys = [
 
 /** Convert display glyphs to the ASCII operators accepted by the API parser. */
 const apiOperator: Record<string, string> = { '×': '*', '÷': '/', '−': '-' };
+
+/** Bound how long a request can keep calculator controls in a pending state. */
+const requestTimeoutMs = 10_000;
 
 /** Map stable API error codes to user-facing recovery guidance. */
 function describeError(code: string) {
@@ -56,13 +60,32 @@ export default function App() {
     if (pending || !expression.trim()) return;
     setPending(true);
     setError(null);
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, requestTimeoutMs);
     try {
       const response = await fetch('/api/v1/calculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ expression }),
+        signal: controller.signal,
       });
-      const payload: unknown = await response.json();
+      let payload: unknown;
+      try {
+        payload = await response.json();
+      } catch {
+        if (timedOut) {
+          logClientFailure('request_timeout');
+          setError({ message: 'The calculation timed out. Try again.', reference: 'unavailable' });
+        } else {
+          logClientFailure('invalid_response');
+          setError({ message: 'The response could not be read. Try again.', reference: 'unavailable' });
+        }
+        return;
+      }
       if (!response.ok) {
         const details = payload as { error?: { code?: string; correlation_id?: string } };
         setError({
@@ -78,8 +101,15 @@ export default function App() {
       }
       setResult(String(data.result));
     } catch {
-      setError({ message: 'Could not reach the calculator. Check your connection and try again.', reference: 'unavailable' });
+      if (timedOut) {
+        logClientFailure('request_timeout');
+        setError({ message: 'The calculation timed out. Try again.', reference: 'unavailable' });
+      } else {
+        logClientFailure('network_failure');
+        setError({ message: 'Could not reach the calculator. Check your connection and try again.', reference: 'unavailable' });
+      }
     } finally {
+      window.clearTimeout(timeout);
       setPending(false);
     }
   }
@@ -88,7 +118,10 @@ export default function App() {
     // Global shortcuts apply outside editable fields; focused inputs retain normal editing.
     function handleKeyboard(event: KeyboardEvent) {
       if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing || pending) return;
-      if (event.target instanceof HTMLElement && event.target.closest('input, textarea, [contenteditable="true"]')) return;
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (target?.closest('input, textarea, [contenteditable="true"]')) return;
+      // Preserve native Enter activation for focused buttons and links.
+      if (event.key === 'Enter' && target?.closest('button, a, [role="button"], select, summary')) return;
 
       let key: string | undefined;
       // On common US layouts, exponentiation is typed with Shift+6. Prefer
@@ -130,7 +163,7 @@ export default function App() {
         <header className="topbar">
           <div className="breadcrumb"><span>Workspace</span><span aria-hidden="true">/</span><strong>Calculator</strong></div>
           <div className="status-stack">
-            <span className="api-indicator"><span /> Ready to calculate</span>
+            <span className="api-indicator"><span /> {pending ? 'Calculating…' : 'Ready to calculate'}</span>
             <span className="api-indicator status-attribution">Calculator created by Elner Ribeiro as a Full Stack Engineer test for Sezzle.</span>
           </div>
         </header>

@@ -44,6 +44,29 @@ Then('the complete application shell fits the viewport', async function () {
   assert.ok(measurements.menu && measurements.menu.right <= measurements.main.left, JSON.stringify(measurements));
 });
 
+Then('visible calculator content stays within the card', async function () {
+  const measurements = await page.evaluate(() => {
+    const card = document.querySelector('.calculator-card')?.getBoundingClientRect();
+    const selectors = ['.result-line output', '.error-message', '.card-foot'];
+    return {
+      card: card?.toJSON(),
+      content: selectors.flatMap((selector) => {
+        const element = document.querySelector(selector);
+        if (!element || !element.getClientRects().length) return [];
+        return [{ selector, rect: element.getBoundingClientRect().toJSON() }];
+      }),
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    };
+  });
+  assert.ok(measurements.card, 'calculator card should exist');
+  assert.ok(measurements.documentWidth <= measurements.viewportWidth, `horizontal overflow: ${JSON.stringify(measurements)}`);
+  for (const item of measurements.content) {
+    assert.ok(item.rect.left >= measurements.card.left - 1, `${item.selector} escapes the card left: ${JSON.stringify(measurements)}`);
+    assert.ok(item.rect.right <= measurements.card.right + 1, `${item.selector} escapes the card right: ${JSON.stringify(measurements)}`);
+  }
+});
+
 Then('the Sezzle brand palette is applied', async function () {
   const palette = await page.evaluate(() => {
     const style = getComputedStyle(document.documentElement);

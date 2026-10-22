@@ -76,6 +76,7 @@ The API also exposes `GET /healthz`.
 ## Development checks
 
 ```sh
+go test ./... -cover
 go test ./api/... -cover
 npm ci --prefix web
 npm --prefix web run lint
@@ -83,22 +84,27 @@ npm --prefix web test
 npm --prefix web run build
 npm --prefix web run build-storybook
 npm --prefix web run test:bdd
+npm --prefix web run test:bdd:validate
+npm --prefix web audit --audit-level=high
 ```
 
-The BDD suite starts both services and checks expression entry, error recovery, shell containment, and overflow at `1080x1920`, `1366x768`, and `1920x1080`.
+The BDD suite starts both services and runs every integrated scenario at `1080x1920`, `1366x768`, and `1920x1080`. It checks expression entry, error recovery, advanced operations, keyboard input, long-result containment, and global horizontal overflow; the long-result check also runs at `320x720`. The GitHub Actions workflow in `.github/workflows/ci.yml` runs the same API, web, browser, audit, coverage, and Docker image checks for pull requests and pushes to `main`.
 
 ## Design notes
 
 - The browser sends a complete expression to the API; arithmetic and validation stay server-side.
 - The API accepts only a JSON object with an `expression` string and returns finite numeric results.
 - UI errors tell users what action failed, how to recover, and the API correlation ID when available.
+- Each API submission has a 10-second browser timeout. While waiting, the status shows “Calculating…”; timeout recovery preserves the expression and re-enables controls.
+- Browser request exceptions use LogTape structured events containing only the operation and a stable error category. Expressions, raw exception messages, and response bodies are not logged.
+- Arithmetic rejects non-finite intermediate values immediately, including NaN/infinity that a later exponent could otherwise mask.
 - The initial keypad is the complete expression entry surface. It supports the four basic operations plus exponentiation, square root, and percentage.
 - The interface uses Sezzle purple (`#382757`) and mint (`#9FF4D9`). Outside the expression field, type digits and operators, `Shift+6` for exponentiation, `x` for multiply, `s` for square root, Backspace to delete, Escape to clear, and Enter or `=` to calculate. In the expression field, type normally and press Enter to calculate.
 - The page credits the project as: “Calculator created by Elner Ribeiro as a Full Stack Engineer test for Sezzle.”
 
 ## Code documentation
 
-See [the code walkthrough](docs/code-walkthrough.md) for the responsibilities of each API, UI, test, browser-check, and configuration source file. See [the architecture and behavior diagrams](docs/architecture.md) for Mermaid flow, state, sequence, activity, and deployment views. Prompts and clarifications are recorded in [docs/prompts.md](docs/prompts.md).
+See [the code walkthrough](docs/code-walkthrough.md) for the responsibilities of each API, UI, test, browser-check, and configuration source file. See [the architecture and behavior diagrams](docs/architecture.md) for Mermaid flow, state, sequence, activity, and deployment views. The [PR review follow-up record](docs/review-followups.md) explains each finding, implementation decision, and regression check. Prompts and clarifications are recorded in [docs/prompts.md](docs/prompts.md).
 
 ## Test suites
 
@@ -106,6 +112,8 @@ See [the code walkthrough](docs/code-walkthrough.md) for the responsibilities of
 - Unit and component tests: `npm --prefix web test`
 - TypeScript/component checks: `npm --prefix web run lint`
 - Integration and Playwright browser scenarios: `npm --prefix web run test:bdd` (also exposed as `test:e2e`)
+- Gherkin definition validation: `npm --prefix web run test:bdd:validate`
+- Dependency audit: `npm --prefix web audit --audit-level=high`
 - Storybook build: `npm --prefix web run build-storybook`
 
 Container images are defined by `api/Dockerfile` and `web/Dockerfile`; `compose.yaml` and `scripts/containers.sh` build and manage both services.

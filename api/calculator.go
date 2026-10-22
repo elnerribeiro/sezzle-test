@@ -71,13 +71,19 @@ func (p *parser) parseExpression() (float64, error) {
 			if err != nil {
 				return 0, err
 			}
-			value += right
+			value, err = finite(value + right)
+			if err != nil {
+				return 0, err
+			}
 		} else if p.take('-') {
 			right, err := p.parseTerm()
 			if err != nil {
 				return 0, err
 			}
-			value -= right
+			value, err = finite(value - right)
+			if err != nil {
+				return 0, err
+			}
 		} else {
 			return value, nil
 		}
@@ -96,7 +102,10 @@ func (p *parser) parseTerm() (float64, error) {
 			if err != nil {
 				return 0, err
 			}
-			value *= right
+			value, err = finite(value * right)
+			if err != nil {
+				return 0, err
+			}
 		} else if p.take('/') {
 			right, err := p.parseUnary()
 			if err != nil {
@@ -105,7 +114,10 @@ func (p *parser) parseTerm() (float64, error) {
 			if right == 0 {
 				return 0, errDivisionByZero
 			}
-			value /= right
+			value, err = finite(value / right)
+			if err != nil {
+				return 0, err
+			}
 		} else {
 			return value, nil
 		}
@@ -135,7 +147,19 @@ func (p *parser) parsePower() (float64, error) {
 		if err != nil {
 			return 0, err
 		}
-		value = math.Pow(value, right)
+		value, err = finite(math.Pow(value, right))
+		if err != nil {
+			return 0, err
+		}
+	}
+	return value, nil
+}
+
+// finite rejects NaN and infinity as soon as an operation creates them so a
+// later operation cannot mask an invalid intermediate (for example NaN^0).
+func finite(value float64) (float64, error) {
+	if math.IsInf(value, 0) || math.IsNaN(value) {
+		return 0, errResultOutOfRange
 	}
 	return value, nil
 }

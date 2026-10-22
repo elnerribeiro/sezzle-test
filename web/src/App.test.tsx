@@ -1,12 +1,15 @@
 // Component-level behavior tests for keypad input, keyboard shortcuts, API states,
 // and accessible user feedback.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import App from './App';
+import * as clientLogger from './clientLogger';
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 /** Click keypad keys by their accessible names to exercise the public UI controls. */
@@ -134,6 +137,18 @@ describe('calculator', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Support reference: unavailable');
   });
 
+  it('logs a malformed JSON response with only a safe failure category', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('private response details', { status: 200 }));
+    const logFailure = vi.spyOn(clientLogger, 'logClientFailure');
+    render(<App />);
+    press('1', '=');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/response could not be read/i);
+    expect(logFailure).toHaveBeenCalledTimes(1);
+    expect(logFailure).toHaveBeenCalledWith('invalid_response');
+    expect(JSON.stringify(logFailure.mock.calls)).not.toContain('private response details');
+  });
+
   it('uses a safe fallback when the API omits its error code and reference', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: {} }), { status: 400 }));
     render(<App />);
@@ -141,5 +156,75 @@ describe('calculator', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/Check the expression and try again/i);
     expect(screen.getByRole('alert')).toHaveTextContent('Support reference: unavailable');
+  });
+
+  it('lets Enter activate a focused clear button instead of submitting', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    render(<App />);
+    press('2', '+', '3');
+    screen.getByRole('button', { name: 'C' }).focus();
+
+    await user.keyboard('{Enter}');
+
+    expect(screen.getByLabelText('Expression')).toHaveValue('');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('lets Enter activate focused keypad digit and operator buttons', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    screen.getByRole('button', { name: '7' }).focus();
+    await user.keyboard('{Enter}');
+    screen.getByRole('button', { name: '+' }).focus();
+    await user.keyboard('{Enter}');
+
+    expect(screen.getByLabelText('Expression')).toHaveValue('7+');
+  });
+
+  it('lets Enter follow a focused menu link without calculating', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    render(<App />);
+    press('2', '+', '3');
+    const homeLink = screen.getByRole('link', { name: 'Sezzle calculator home' });
+    homeLink.focus();
+
+    await user.keyboard('{Enter}');
+
+    expect(window.location.hash).toBe('#calculator');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('shows calculating feedback and recovers after a bounded request timeout', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+    }));
+    const logFailure = vi.spyOn(clientLogger, 'logClientFailure');
+    render(<App />);
+    press('1', '+', '1', '=');
+
+    expect(screen.getByText('Calculating…')).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/timed out/i);
+    expect(screen.getByLabelText('Expression')).toHaveValue('1+1');
+    expect(screen.getByRole('button', { name: 'C' })).toBeEnabled();
+    expect(logFailure).toHaveBeenCalledWith('request_timeout');
+  });
+
+  it('logs client failures once using a safe category without expression or raw error data', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('private response details'));
+    const logFailure = vi.spyOn(clientLogger, 'logClientFailure');
+    render(<App />);
+    press('1', '+', '1', '=');
+
+    await screen.findByRole('alert');
+
+    expect(logFailure).toHaveBeenCalledTimes(1);
+    expect(logFailure).toHaveBeenCalledWith('network_failure');
+    expect(JSON.stringify(logFailure.mock.calls)).not.toMatch(/private response details|1\+1/);
   });
 });

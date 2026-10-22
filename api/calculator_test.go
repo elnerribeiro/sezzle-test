@@ -40,6 +40,11 @@ func TestCalculate(t *testing.T) {
 		{name: "unclosed parenthesis", expr: "(2+3", wantError: "invalid_expression"},
 		{name: "empty expression", expr: " ", wantError: "invalid_request"},
 		{name: "overflow", expr: "1e308*1e308", wantError: "result_out_of_range"},
+		{name: "non-finite power nested in parentheses", expr: "((-1)^0.5)^0", wantError: "result_out_of_range"},
+		{name: "non-finite power nested in square root", expr: "sqrt((-1)^0.5)^0", wantError: "result_out_of_range"},
+		{name: "non-finite exponent operand", expr: "1^((-1)^0.5)", wantError: "result_out_of_range"},
+		{name: "overflow masked by later power", expr: "(1e308*1e308)^0", wantError: "result_out_of_range"},
+		{name: "overflow during addition", expr: "1e308+1e308", wantError: "result_out_of_range"},
 	}
 
 	for _, tt := range tests {

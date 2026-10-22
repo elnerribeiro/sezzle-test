@@ -10,4 +10,6 @@ The Go server uses the standard structured `log/slog` JSON handler on stderr. Re
 
 ## Client behavior
 
-The React client maps known API error codes to user-facing recovery guidance. Network failures and malformed success payloads receive generic messages with an `unavailable` support reference. Raw response text, exceptions, and implementation details are never rendered to the page.
+The React client maps known API error codes to user-facing recovery guidance. Network failures, request timeouts, and malformed response payloads receive generic messages with an `unavailable` support reference. Each handled transport/response exception is logged once through LogTape as a structured error event with only `operation` and `errorType` fields. Expression contents, raw exception messages, and response bodies are excluded. The 10-second request deadline aborts fetch and lets the UI leave its pending state.
+
+The browser logger is configured in `web/src/clientLogger.ts` with the LogTape console sink and error-level filtering. LogTape is a zero-dependency, TypeScript-native logger for browser and server runtimes. Client logs remain quiet except for handled request failures. See the [LogTape quick start](https://logtape.org/manual/start) and [release changelog](https://logtape.org/changelog).

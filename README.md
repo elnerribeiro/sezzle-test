@@ -2,6 +2,7 @@
 
 A full-stack expression calculator with a Go/Gin API and React/TypeScript keypad UI.
 Done using Codex, GPT-6 Luna High for design and code, GPT-6.1 Sol High for tests and validations.
+Project was done in a constitutional approach, using AGENTS.md as the constitution file. Time from start to finish, about 4 hours (Plus plan restrictions apply).
 
 ## Requirements
 

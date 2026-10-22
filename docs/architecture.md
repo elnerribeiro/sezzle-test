@@ -7,7 +7,7 @@ This document describes the calculator's runtime boundaries and the paths a requ
 ```mermaid
 flowchart LR
   person[User] -->|keypad or keyboard| browser[React calculator]
-  browser -->|POST /api/v1/calculate<br/>JSON expression| edge[Nginx frontend container]
+  browser -->|"POST /api/v1/calculate<br/>JSON expression"| edge[Nginx frontend container]
   edge -->|reverse proxy| api[Gin API container]
   api --> parser[Expression parser]
   parser -->|finite result or stable error| api
@@ -15,13 +15,13 @@ flowchart LR
   edge -->|same-origin response| browser
   browser -->|result or recovery guidance| person
 
-  subgraph compose[Docker Compose network]
+  subgraph compose [Docker Compose network]
     edge
     api
   end
 
-  browser -. local development .-> vite[Vite dev server]
-  vite -. /api and /healthz proxy .-> api
+  browser -. "local development" .-> vite[Vite dev server]
+  vite -. "/api and /healthz proxy" .-> api
 ```
 
 The Compose deployment publishes the Nginx frontend on the host. Nginx serves the compiled React files and forwards `/api/` and `/healthz` requests to the private `api` service. During development, Vite performs the same proxy role. The Go API exposes `GET /healthz` and `POST /api/v1/calculate`.
@@ -37,7 +37,7 @@ flowchart TD
   pad --> ready[Expression is ready]
   keys --> ready
   text --> ready
-  ready --> submit{Submit with Enter, equals, or keypad button?}
+  ready --> submit{"Submit with Enter, equals, or keypad button?"}
   submit -->|no| ready
   submit -->|yes; empty or already pending| ignore[Keep current state]
   submit -->|yes; valid client precondition| request[POST complete expression to API]
@@ -87,34 +87,34 @@ sequenceDiagram
   participant Parser as Expression parser
   participant Log as LogTape client logger
 
-  User->>UI: Enter full expression and submit
-  UI->>UI: Check non-empty expression and pending state
-  UI->>Proxy: POST /api/v1/calculate { expression }
-  Proxy->>API: Forward request
-  API->>API: Limit and decode JSON; reject unknown or trailing data
-  API->>Parser: Parse and evaluate expression
+  User->>UI: "Enter full expression and submit"
+  UI->>UI: "Check non-empty expression and pending state"
+  UI->>Proxy: "POST /api/v1/calculate { expression }"
+  Proxy->>API: "Forward request"
+  API->>API: "Limit and decode JSON, reject unknown or trailing data"
+  API->>Parser: "Parse and evaluate expression"
   alt Valid finite result
-    Parser-->>API: number
-    API-->>Proxy: 200 { result }
-    Proxy-->>UI: JSON response
-    UI->>UI: Display result and clear pending state
+    Parser-->>API: "number"
+    API-->>Proxy: "200 { result }"
+    Proxy-->>UI: "JSON response"
+    UI->>UI: "Display result and clear pending state"
   else Input or calculation error
-    Parser-->>API: stable error category
-    API-->>Proxy: 4xx/422 { error: { code, correlation_id } }
-    Proxy-->>UI: JSON error
-    UI->>UI: Display recovery guidance and support reference
+    Parser-->>API: "stable error category"
+    API-->>Proxy: "4xx/422 { error: { code, correlation_id } }"
+    Proxy-->>UI: "JSON error"
+    UI->>UI: "Display recovery guidance and support reference"
   else Malformed JSON response
-    UI->>UI: Validate object, result and error field types
-    UI->>Log: Record invalid_response without response contents
-    UI->>UI: Display generic recoverable response message
+    UI->>UI: "Validate object, result and error field types"
+    UI->>Log: "Record invalid_response without response contents"
+    UI->>UI: "Display generic recoverable response message"
   else Network failure
-    Proxy--xUI: Request unavailable
-    UI->>Log: Record operation and safe error category once
-    UI->>UI: Display connection recovery guidance
+    Proxy--xUI: "Request unavailable"
+    UI->>Log: "Record operation and safe error category once"
+    UI->>UI: "Display connection recovery guidance"
   else Request takes longer than 10 seconds
-    UI->>UI: AbortController cancels fetch
-    UI->>Log: Record request_timeout without expression or exception
-    UI->>UI: Show timeout recovery and re-enable controls
+    UI->>UI: "AbortController cancels fetch"
+    UI->>Log: "Record request_timeout without expression or exception"
+    UI->>UI: "Show timeout recovery and re-enable controls"
   end
 ```
 
@@ -125,7 +125,7 @@ flowchart TD
   begin([Begin]) --> choose[Choose keypad, keyboard, or expression field]
   choose --> compose[Compose expression]
   compose --> review[Review visible expression]
-  review --> action{Calculate now?}
+  review --> action{"Calculate now?"}
   action -->|No| compose
   action -->|Yes| send[Submit once]
   send --> wait[Wait with calculating feedback and 10-second deadline]
@@ -134,9 +134,9 @@ flowchart TD
   outcome -->|Recoverable error| correction[Read action guidance and support reference]
   outcome -->|Timeout| correction
   correction --> compose
-  result --> next{Continue?}
+  result --> next{"Continue?"}
   next -->|Yes| compose
-  next -->|No| end([Done])
+  next -->|No| done([Done])
 ```
 
 Keyboard controls outside editable fields are digits and operators, `Shift+6` for exponentiation, `x` for multiplication, `s` for square root, `Backspace` to delete, `Escape` to clear, and `Enter` or `=` to calculate. Enter retains native activation for a focused button or link; after a keypad click, the first global expression key blurs the button so later shortcuts in the sequence continue to work and Enter calculates. `Shift+6` is also translated to exponentiation when the expression field has focus; replacing a selected `^` collapses the caret immediately. When the expression field is focused, native form submission calculates. Client transport and malformed-response failures are logged once as LogTape JSON Lines records with only an operation and safe failure category.
@@ -150,18 +150,18 @@ sequenceDiagram
   participant HTTP as net/http server
   participant Request as Active request
 
-  OS->>Main: SIGTERM or interrupt
-  Main->>HTTP: Shutdown with five-second deadline
-  HTTP->>HTTP: Stop accepting new connections
-  HTTP->>Request: Allow active request to finish
-  Request-->>HTTP: Complete response
-  HTTP-->>Main: Shutdown completes
-  Main->>HTTP: Observe ErrServerClosed
-  Main-->>OS: Exit status 0
+  OS->>Main: "SIGTERM or interrupt"
+  Main->>HTTP: "Shutdown with five-second deadline"
+  HTTP->>HTTP: "Stop accepting new connections"
+  HTTP->>Request: "Allow active request to finish"
+  Request-->>HTTP: "Complete response"
+  HTTP-->>Main: "Shutdown completes"
+  Main->>HTTP: "Observe ErrServerClosed"
+  Main-->>OS: "Exit status 0"
 
   alt Listen or shutdown failure
-    HTTP-->>Main: Unexpected error or deadline exceeded
-    Main-->>OS: Log safe error type and exit nonzero
+    HTTP-->>Main: "Unexpected error or deadline exceeded"
+    Main-->>OS: "Log safe error type and exit nonzero"
   end
 ```
 
@@ -177,16 +177,16 @@ sequenceDiagram
   participant APIImage as Go API image
   participant WebImage as Nginx frontend image
 
-  User->>Script: start
-  Script->>Compose: up -d --build
-  Compose->>APIImage: Build Go binary and non-root runtime image
-  Compose->>WebImage: npm ci, build React assets, copy into Nginx image
-  Compose->>Compose: Start api and web on private network
-  Compose-->>Script: Containers started
-  Script-->>User: Frontend URL
-  User->>Script: stop
-  Script->>Compose: stop web api
-  Compose-->>User: Both containers stopped; containers retained
+  User->>Script: "start"
+  Script->>Compose: "up -d --build"
+  Compose->>APIImage: "Build Go binary and non-root runtime image"
+  Compose->>WebImage: "npm ci, build React assets, copy into Nginx image"
+  Compose->>Compose: "Start api and web on private network"
+  Compose-->>Script: "Containers started"
+  Script-->>User: "Frontend URL"
+  User->>Script: "stop"
+  Script->>Compose: "stop web api"
+  Compose-->>User: "Both containers stopped, containers retained"
 ```
 
 ## Code and tests

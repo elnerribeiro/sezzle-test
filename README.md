@@ -51,6 +51,8 @@ The first start builds both images. Open `http://localhost:3000/`. The Nginx fro
 
 `POST /api/v1/calculate`
 
+Start the API with `go run ./api/cmd/server` first. The examples below use `http://localhost:8080`; if you are running the containers, use `http://localhost:3000` instead (the frontend proxies the API route).
+
 Request:
 
 ```json
@@ -63,15 +65,54 @@ Success response:
 {"result":20}
 ```
 
-Supported operators are `+`, `-`, `*`, `/`, `^`, postfix `%`, parentheses, and `sqrt(...)`. Multiplication and division take precedence over addition and subtraction; exponentiation is right-associative. Percentage divides its value by 100. Errors use a stable code and a support reference:
+Supported operators are `+`, `-`, `*`, `/`, `^`, postfix `%`, parentheses, and `sqrt(...)`. Multiplication and division take precedence over addition and subtraction; exponentiation is right-associative. Percentage divides its value by 100.
 
-```json
-{"error":{"code":"division_by_zero","correlation_id":"..."}}
+Try a basic expression:
+
+```sh
+curl --include --request POST \
+  --url http://localhost:8080/api/v1/calculate \
+  --header 'Content-Type: application/json' \
+  --data '{"expression":"(2 + 3) * 4"}'
 ```
 
-Other error codes include `invalid_request`, `invalid_expression`, `result_out_of_range`, `method_not_allowed`, and `not_found`.
+Expected response body:
 
-The API also exposes `GET /healthz`.
+```json
+{"result":20}
+```
+
+Try advanced operations together:
+
+```sh
+curl --include --request POST \
+  --url http://localhost:8080/api/v1/calculate \
+  --header 'Content-Type: application/json' \
+  --data '{"expression":"sqrt(81) + 2^3 + 25%"}'
+```
+
+Expected response body:
+
+```json
+{"result":17.25}
+```
+
+Try an error response (HTTP 400). The generated `correlation_id` can be used as a support reference:
+
+```sh
+curl --include --request POST \
+  --url http://localhost:8080/api/v1/calculate \
+  --header 'Content-Type: application/json' \
+  --data '{"expression":"1 / 0"}'
+```
+
+The response has a stable error code and a generated support reference:
+
+```json
+{"error":{"code":"division_by_zero","correlation_id":"<generated-id>"}}
+```
+
+Other error codes include `invalid_request`, `invalid_expression`, `result_out_of_range`, `method_not_allowed`, and `not_found`. The health endpoint can be checked with `curl --include http://localhost:8080/healthz`.
 
 ## Development checks
 

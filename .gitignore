@@ -1,0 +1,6 @@
+web/node_modules/
+web/dist/
+web/storybook-static/
+web/coverage/
+web/test-results/
+web/playwright-report/

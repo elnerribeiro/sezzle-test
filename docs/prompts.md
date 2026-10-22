@@ -1,0 +1,13 @@
+# Project prompts
+
+This file records the user's project prompts and the choices that set the initial implementation scope.
+
+1. “Let's start creating this project. Check AGENTS.md and OVERVIEW.md, ask for any clarification and then let's start to build.”
+2. Initial scope: “Include all optional operations”.
+3. Calculator behavior: “Full keypad expression entry”.
+4. “OK, looks good now. Use the same color schema as this site ([https://sezzle.com/](https://sezzle.com/)). Also, bind keyboard keys to allow easy keyboard input.”
+5. “Check why exponentiation keyboard input is not working. Fix. Add the text "Calculator created by Elner Ribeiro as a Full Stack Engineer test for Sezzle.". Document the whole code. Assure all prompts are saved. Assure unit tests, integration tests, API tests, storybook, components tests, and playwright tests are all green.”
+6. “Put the comment text below the Ready to calculate info. Use that style.”
+7. “Document the code on the .go, .ts and .tsx files.”
+8. “Create docker containers for both backend and frontend. Create a script for start and stop both. Document this on README.”
+9. “Create a doc with Mermaid diagrams, explaining flow, states, sequences, activities and the overall architecture. With that done, check one more time the project and create a PR.”

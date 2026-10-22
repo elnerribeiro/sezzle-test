@@ -20,5 +20,4 @@ This file records the user's project prompts and the choices that set the initia
 
 ## Back to initial context
 
-1.
-2. “Check the comments on the PR. Analyze meaning, code and viability. Implement them. Document everything and change docs accordingly.”
+1. “Check the comments on the PR. Analyze meaning, code and viability. Implement them. Document everything and change docs accordingly.”

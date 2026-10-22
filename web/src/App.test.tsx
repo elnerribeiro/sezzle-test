@@ -61,7 +61,7 @@ describe('calculator', () => {
     }));
   });
 
-  it('moves focus to expression entry when keyboard input follows a keypad click', async () => {
+  it('blurs a keypad control when keyboard input follows its click', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ result: 5 }), { status: 200 }),
@@ -71,7 +71,7 @@ describe('calculator', () => {
     await user.click(screen.getByRole('button', { name: '2' }));
     await user.keyboard('+3');
     expect(screen.getByLabelText('Expression')).toHaveValue('2+3');
-    expect(screen.getByLabelText('Expression')).toHaveFocus();
+    expect(screen.getByLabelText('Expression')).not.toHaveFocus();
     await user.keyboard('{Enter}');
 
     expect(await screen.findByRole('status')).toHaveTextContent('5');
@@ -80,7 +80,7 @@ describe('calculator', () => {
     }));
   });
 
-  it('moves focus to expression entry after a keypad clear before mixed input', async () => {
+  it('keeps global entry active after a keypad clear before mixed input', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ result: 5 }), { status: 200 }),
@@ -96,13 +96,35 @@ describe('calculator', () => {
     }));
   });
 
+  it('keeps global x, S, Escape and equals shortcuts working after a keypad click', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ result: 5 }), { status: 200 }),
+    );
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '2' }));
+    await user.keyboard('x3');
+    expect(screen.getByLabelText('Expression')).toHaveValue('2*3');
+    await user.keyboard('{Escape}');
+    expect(screen.getByLabelText('Expression')).toHaveValue('');
+    await user.keyboard('2+S9)');
+    expect(screen.getByLabelText('Expression')).toHaveValue('2+sqrt(9)');
+    await user.keyboard('=');
+
+    expect(await screen.findByRole('status')).toHaveTextContent('5');
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/calculate', expect.objectContaining({
+      body: JSON.stringify({ expression: '2+sqrt(9)' }),
+    }));
+  });
+
   it('maps the physical Shift+6 shortcut to exponentiation', () => {
     render(<App />);
     fireEvent.keyDown(window, { key: '6', code: 'Digit6', shiftKey: true });
     expect(screen.getByLabelText('Expression')).toHaveValue('^');
   });
 
-  it('keeps Shift+6 exponent entry working after global input moves focus to the field', async () => {
+  it('keeps Shift+6 exponent entry working during global input', async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -110,6 +132,21 @@ describe('calculator', () => {
     await user.keyboard('{Shift>}6{/Shift}3');
 
     expect(screen.getByLabelText('Expression')).toHaveValue('2^3');
+  });
+
+  it('collapses a selected exponent caret before the next typed character', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const input = screen.getByLabelText('Expression') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '2^3' } });
+    input.focus();
+    input.setSelectionRange(1, 2);
+
+    await user.keyboard('{Shift>}6{/Shift}4');
+
+    expect(input).toHaveValue('2^43');
+    expect(input.selectionStart).toBe(3);
+    expect(input.selectionEnd).toBe(3);
   });
 
   it('displays the project attribution below the ready status', () => {

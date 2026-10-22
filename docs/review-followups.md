@@ -74,7 +74,7 @@ The follow-up review of commit `5281ce7` identified three P2 issues and one P3 l
 | Finding | Analysis and decision | Implementation and regression check |
 | --- | --- | --- |
 | [Make the shutdown deadline test deterministic](https://github.com/elnerribeiro/sezzle-test/pull/1#discussion_r4349083253) | The test launched `ListenAndServe` and its client request concurrently, ignored the request error, and could race listener startup. This made an infrastructure test flaky rather than measuring shutdown behavior. | The test now registers cleanup before launching goroutines, waits for the health route to prove the listener is ready, reports request failures before handler entry, and consumes the forced-close result afterward. The deadline test passed 100 consecutive runs. |
-| [Handle mixed keypad and keyboard entry](https://github.com/elnerribeiro/sezzle-test/pull/1#discussion_r4349087375) | Preserving native Enter activation left a mouse-focused keypad button in focus. Subsequent global shortcuts updated React state but Enter activated the old button, so the typed expression was not submitted. Moving focus into the field also means the physical `Shift+6` shortcut must still be translated there. | After a global expression key, a layout effect focuses the expression input and places the caret at the end. `Shift+6` inserts `^` at the caret even when the field is focused. Native Enter on deliberately focused buttons and links remains intact. Component tests cover mixed click/keyboard entry, exponent entry, and submission. |
+| [Handle mixed keypad and keyboard entry](https://github.com/elnerribeiro/sezzle-test/pull/1#discussion_r4349087375) | Preserving native Enter activation left a mouse-focused keypad button in focus. Subsequent global shortcuts updated React state but Enter activated the old button, so the typed expression was not submitted. | After the first global expression key, the clicked keypad control is blurred. This keeps the rest of the key sequence in global-shortcut mode and leaves native Enter activation intact for intentionally focused controls. Component tests cover mixed click/keyboard entry and submission. |
 | [Validate API JSON envelopes at runtime](https://github.com/elnerribeiro/sezzle-test/pull/1#discussion_r4349093082) | TypeScript assertions do not validate network data. Null and arrays could be dereferenced, and an object-valued `correlation_id` could reach React as a child and crash the calculator. | Runtime guards require a non-array object, a finite numeric success result, and string error code/reference fields. Malformed shapes log one `invalid_response` event and render generic recoverable guidance with an unavailable reference. Component tests cover null and array envelopes, wrong result types, missing fields, and a non-string correlation ID. |
 | [Emit client events as JSON Lines](https://github.com/elnerribeiro/sezzle-test/pull/1#discussion_r4349097348) | LogTape's default console formatter uses styled, multi-argument output and did not satisfy the project's structured JSON log contract. | `clientLogger.ts` now configures the console sink with `jsonLinesFormatter`. A component-level test captures the actual console sink output, parses the JSON line, and verifies that it contains only the expected operation and error category fields. |
 
@@ -89,3 +89,31 @@ For this follow-up, the relevant documentation was updated in `README.md`, `docs
 - `npm run test:bdd`: passed all 20 scenarios and 157 steps across the required viewports.
 - `docker compose build` and `./scripts/containers.sh start`: passed.
 - External Edge on `http://localhost:3000/`: clicked keypad `2`, entered `Shift+6`, typed `3`, and submitted with Enter; the expression was `2^3` and the result was `8`.
+
+## Final review of commit `9cb8cf6`
+
+The latest review identified two keyboard regressions and one dependency-policy issue. All three findings were viable and have been addressed.
+
+| Finding | Analysis and decision | Implementation and regression check |
+| --- | --- | --- |
+| [Preserve global shortcuts after the first key](https://github.com/elnerribeiro/sezzle-test/pull/1#discussion_r4349432991) | Focusing the expression field after the first global character caused the input handler to treat later characters as direct text editing. That bypassed `x`, `s`, Escape, and `=` mappings. | Global expression entry now blurs the clicked keypad control instead of moving focus into the text field. Tests use real `userEvent` keyboard sequences for `x`, Escape, `S`, and `=`, and a Cucumber/Playwright scenario repeats that mixed sequence at all three required desktop viewports. Deliberate expression-field typing remains native. |
+| [Collapse selection when replacing `^` with `^`](https://github.com/elnerribeiro/sezzle-test/pull/1#discussion_r4349438583) | Replacing a selected exponent operator with the same character leaves the controlled input value unchanged, so React does not render and the expression-dependent layout effect cannot move the caret. The next key then replaces the stale selection. | When Shift+6 replaces an already selected `^`, the handler immediately collapses the selection after the operator. A component regression selects the operator in `2^3`, types Shift+6 then `4`, and asserts `2^43` with the caret after `4`. |
+| [Patch vulnerable `x/crypto`](https://github.com/elnerribeiro/sezzle-test/pull/1#discussion_r4349445683) | The version advisory is actionable under the repository's explicit no-high/critical-CVE rule even though the affected SSH packages are not used by the calculator. The first scan also found outdated `x/net`, `quic-go`, and Go standard-library versions. | Upgraded `golang.org/x/crypto` to `v0.57.0`, `golang.org/x/net` to `v0.60.0`, and `quic-go` to `v0.59.1`; pinned Go `1.26.10` in `go.mod`, CI, and the API build image. `govulncheck` then found no vulnerabilities in reachable code; it still reports one advisory for the unused and unmaintained `x/crypto/openpgp` package. `docs/dependency-review.md` records the rationale. |
+
+### MongoDB dependency analysis
+
+`go mod why -m go.mongodb.org/mongo-driver/v2` traces the driver through Gin's `binding` package, which compiles BSON binding support. This API uses JSON only and does not connect to MongoDB. Removing the driver would mean replacing or forking the required Gin stack to strip an unused binding format; the transitive dependency is retained and documented in [the dependency review](dependency-review.md).
+
+### Final-pass verification
+
+- `go test -race -cover ./...`: passed; API 90.8%, server lifecycle 82.8%.
+- `go vet ./...`: passed.
+- `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`: passed with no findings in reachable code. The scanner reports the unmaintained `x/crypto/openpgp` module advisory, which is not imported by this application. Go 1.26.10 is pinned in the module, CI and API build image.
+- `npm ci`: passed; 306 packages, zero audit findings.
+- `npm run lint`, `npm test`, and `npm run build`: passed. Vitest ran 29 component tests at 91.91% statement coverage.
+- `npm run build-storybook`: passed; retains the existing large-chunk and Node `module.register()` deprecation warnings.
+- `npm run test:bdd:validate`: passed; 23 scenarios and 178 steps discovered.
+- `npm run test:bdd` and `npm run test:e2e`: each passed all 23 scenarios and 178 steps, including the new mixed keypad/global shortcut sequence across the required viewport matrix.
+- `npm audit --audit-level=high`: passed with zero vulnerabilities.
+- `docker compose build` and `./scripts/containers.sh start`: passed; both containers started.
+- External Edge verified mixed keypad plus `x`, `S`, Escape, and `=` input yielding `5`; replacing a selected exponent in `2^3` with Shift+6 and typing `4` yielded `2^43` with the caret after the inserted digit. The shell geometry and absence of horizontal overflow were checked at `1080x1920`, `1366x768`, and `1920x1080`. The verified app remains open at `http://localhost:3000/`.

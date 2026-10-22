@@ -18,7 +18,7 @@ The browser renders the React calculator, collects a complete expression, and se
 
 - `web/index.html` provides the browser document, page title, and root element used by the React entry point.
 - `web/src/main.tsx` mounts the React application into the HTML root element.
-- `web/src/App.tsx` owns the calculator view and interaction state: expression entry, keypad mapping, API submission, a 10-second abortable request, visible pending state, result display, runtime validation of untrusted JSON response shapes, safe error messages, and keyboard shortcuts. Enter preserves native activation on focused buttons and links; global typing after keypad interaction moves focus and the caret into the expression field.
+- `web/src/App.tsx` owns the calculator view and interaction state: expression entry, keypad mapping, API submission, a 10-second abortable request, visible pending state, result display, runtime validation of untrusted JSON response shapes, safe error messages, and keyboard shortcuts. Enter preserves native activation on focused buttons and links; global typing after keypad interaction blurs the clicked button to keep the shortcut sequence active. Exponent replacement also collapses a selected `^` immediately.
 - `web/src/clientLogger.ts` configures LogTape with a JSON Lines console formatter and logs only safe operation/error categories for handled transport and malformed-response failures.
 - `web/src/app.css` defines the responsive application shell, keypad and result styles, long-number wrapping, accessibility focus styles, and Sezzle color tokens.
 - `web/src/App.test.tsx` tests UI behavior with mocked HTTP responses, including native Enter activation, mixed keypad/keyboard input, malformed JSON envelope recovery, emitted JSON log records, timeout recovery, and error handling.
@@ -50,6 +50,7 @@ The browser renders the React calculator, collects a complete expression, and se
 ## Project documentation
 
 - `go.mod` declares the Go module and API dependencies; `go.sum` records dependency checksums. `.gitignore` excludes local and generated files from version control.
+- `docs/dependency-review.md` explains the dependency audit, including Gin's transitive BSON/MongoDB driver and the patched Go crypto module.
 - `OVERVIEW.md` preserves the original exercise requirements.
 - `AGENTS.md` is the project development constitution and validation route.
 - `README.md` documents setup, HTTP API usage, operations, keyboard controls, and common checks.

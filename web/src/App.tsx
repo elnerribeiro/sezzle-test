@@ -148,11 +148,18 @@ export default function App() {
         const input = expressionInput.current;
         const start = input?.selectionStart ?? expression.length;
         const end = input?.selectionEnd ?? start;
+        const replacesExponentWithExponent = input?.value.slice(start, end) === '^';
         setExpression((current) => `${current.slice(0, start)}^${current.slice(end)}`);
         setResult(null);
         setError(null);
-        caretAfterKeyboardEntry.current = start + 1;
-        focusAfterKeyboardEntry.current = true;
+        if (replacesExponentWithExponent && input) {
+          // React has no value change to render in this case, so collapse the
+          // selected operator immediately instead of waiting for a layout effect.
+          input.setSelectionRange(start + 1, start + 1);
+        } else {
+          caretAfterKeyboardEntry.current = start + 1;
+          focusAfterKeyboardEntry.current = true;
+        }
         return;
       }
       if (target?.closest('input, textarea, [contenteditable="true"]')) return;
@@ -171,7 +178,10 @@ export default function App() {
 
       if (key) {
         event.preventDefault();
-        focusAfterKeyboardEntry.current = true;
+        // A clicked keypad button keeps focus, which would make the next Enter
+        // activate that button. Blur it so the rest of this sequence remains
+        // in global-shortcut mode and Enter submits the expression.
+        target?.blur();
         enterKey(key);
       } else if (event.key === 'Enter' || event.key === '=') {
         event.preventDefault();

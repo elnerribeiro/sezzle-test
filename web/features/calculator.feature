@@ -74,6 +74,19 @@ Feature: Calculator
       | 1366  | 768    |
       | 1920  | 1080   |
 
+  Scenario Outline: Global keyboard shortcuts remain active after keypad input
+    Given I open the calculator at <width> by <height>
+    When I mix keypad input with the global x, S, Escape and equals shortcuts
+    Then I see the result "5"
+    And visible calculator content stays within the card
+    And the complete application shell fits the viewport
+
+    Examples:
+      | width | height |
+      | 1080  | 1920   |
+      | 1366  | 768    |
+      | 1920  | 1080   |
+
   Scenario Outline: Long results remain readable without horizontal overflow
     Given I open the calculator at <width> by <height>
     When I enter and calculate "2^100"

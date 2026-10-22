@@ -6,7 +6,7 @@ Project was done in a constitutional approach, using AGENTS.md as the constituti
 
 ## Requirements
 
-- Go 1.26+
+- Go 1.26.10 (pinned by `go.mod` and CI)
 - Node.js 26+ and npm
 - Docker Engine or Docker Desktop with the Docker Compose v2 plugin (for containerized use)
 
@@ -141,7 +141,8 @@ The BDD suite starts both services and runs every integrated scenario at `1080x1
 - Each API submission has a 10-second browser timeout. While waiting, the status shows “Calculating…”; timeout recovery preserves the expression and re-enables controls.
 - Browser request exceptions use LogTape structured events containing only the operation and a stable error category. Expressions, raw exception messages, and response bodies are not logged.
 - The UI validates response envelopes before rendering them. Null, array, or wrong-typed JSON fields produce a recoverable invalid-response message instead of being rendered as data.
-- After clicking a keypad control, the first global keyboard entry moves focus and the caret to the expression field, so mixed mouse and keyboard input can be submitted with Enter.
+- After clicking a keypad control, the first global keyboard entry blurs that control. This keeps the remaining shortcuts active (`x`, `s`, Escape, Enter, and `=` included) while preserving native Enter activation for deliberately focused buttons and links.
+- In the expression field, `Shift+6` inserts `^` at the selection and collapses the caret after it, including when replacing an already selected exponent operator.
 - Arithmetic rejects non-finite intermediate values immediately, including NaN/infinity that a later exponent could otherwise mask.
 - The initial keypad is the complete expression entry surface. It supports the four basic operations plus exponentiation, square root, and percentage.
 - The interface uses Sezzle purple (`#382757`) and mint (`#9FF4D9`). Outside the expression field, type digits and operators, `Shift+6` for exponentiation, `x` for multiply, `s` for square root, Backspace to delete, Escape to clear, and Enter or `=` to calculate. In the expression field, type normally, use `Shift+6` for exponentiation, and press Enter to calculate.
@@ -159,6 +160,9 @@ See [the code walkthrough](docs/code-walkthrough.md) for the responsibilities of
 - Integration and Playwright browser scenarios: `npm --prefix web run test:bdd` (also exposed as `test:e2e`)
 - Gherkin definition validation: `npm --prefix web run test:bdd:validate`
 - Dependency audit: `npm --prefix web audit --audit-level=high`
+- Go dependency security audit: `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`
 - Storybook build: `npm --prefix web run build-storybook`
 
 Container images are defined by `api/Dockerfile` and `web/Dockerfile`; `compose.yaml` and `scripts/containers.sh` build and manage both services.
+
+See [the dependency review](docs/dependency-review.md) for the Go and npm dependency rationale, including why the MongoDB driver appears transitively through Gin's binding package.

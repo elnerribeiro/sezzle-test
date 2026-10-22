@@ -139,7 +139,7 @@ flowchart TD
   next -->|No| end([Done])
 ```
 
-Keyboard controls outside editable fields are digits and operators, `Shift+6` for exponentiation, `x` for multiplication, `s` for square root, `Backspace` to delete, `Escape` to clear, and `Enter` or `=` to calculate. Enter retains native activation for a focused button or link; the first global expression key after keypad focus moves focus and the caret to the expression field, so following typing and Enter behave like direct field entry. `Shift+6` is also translated to exponentiation when the expression field has focus. When the expression field is focused, native form submission calculates. Client transport and malformed-response failures are logged once as LogTape JSON Lines records with only an operation and safe failure category.
+Keyboard controls outside editable fields are digits and operators, `Shift+6` for exponentiation, `x` for multiplication, `s` for square root, `Backspace` to delete, `Escape` to clear, and `Enter` or `=` to calculate. Enter retains native activation for a focused button or link; after a keypad click, the first global expression key blurs the button so later shortcuts in the sequence continue to work and Enter calculates. `Shift+6` is also translated to exponentiation when the expression field has focus; replacing a selected `^` collapses the caret immediately. When the expression field is focused, native form submission calculates. Client transport and malformed-response failures are logged once as LogTape JSON Lines records with only an operation and safe failure category.
 
 ## API process shutdown
 

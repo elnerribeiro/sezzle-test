@@ -138,6 +138,14 @@ When('I type and calculate {string} using the exponent keyboard shortcut', async
   await page.keyboard.press('Enter');
 });
 
+When('I mix keypad input with the global x, S, Escape and equals shortcuts', async function () {
+  await page.getByRole('button', { name: '2', exact: true }).click();
+  await page.keyboard.type('x3');
+  await page.keyboard.press('Escape');
+  await page.keyboard.type('2+S9)');
+  await page.keyboard.press('=');
+});
+
 async function enterAndCalculate(expression) {
   for (const character of expression) {
     const labels = { '*': '×', '/': '÷', '-': '−' };

@@ -39,3 +39,9 @@ This file records the user's project prompts and the choices that set the initia
 ## Back to initial context
 
 1. “Check the new comments on the PR. Analyze meaning, code and viability. Implement them. Document everything and change docs accordingly. Make this with extreme care, let's make this the last pass. Also check some dependencies. Why do we have a dependency for mongo, for example?”
+
+## Back to review and tests chat
+
+1. “Final validation. Are we OK?”
+
+Green light. Human now validates code and documentation, approves and merge to main.

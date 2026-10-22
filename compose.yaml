@@ -1,0 +1,20 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      API_ADDRESS: ":8080"
+    expose:
+      - "8080"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: web
+      dockerfile: Dockerfile
+    depends_on:
+      - api
+    ports:
+      - "${CALCULATOR_WEB_PORT:-3000}:80"
+    restart: unless-stopped

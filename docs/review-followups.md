@@ -66,3 +66,26 @@ docker compose build
 - External Edge checked long-result containment and global width at `1080x1920`, `1366x768`, `1920x1080`, and `320x720`; no console errors were observed. The full Gherkin suite also validates all error, keypad, keyboard, and happy-path flows at each required viewport.
 
 The local checks validate the same commands committed in CI. GitHub Actions reports the merge-time run after each branch update is pushed.
+
+## Follow-up review
+
+The follow-up review of commit `5281ce7` identified three P2 issues and one P3 logging-format mismatch. All four are viable corrections and are implemented below.
+
+| Finding | Analysis and decision | Implementation and regression check |
+| --- | --- | --- |
+| [Make the shutdown deadline test deterministic](https://github.com/elnerribeiro/sezzle-test/pull/1#discussion_r4349083253) | The test launched `ListenAndServe` and its client request concurrently, ignored the request error, and could race listener startup. This made an infrastructure test flaky rather than measuring shutdown behavior. | The test now registers cleanup before launching goroutines, waits for the health route to prove the listener is ready, reports request failures before handler entry, and consumes the forced-close result afterward. The deadline test passed 100 consecutive runs. |
+| [Handle mixed keypad and keyboard entry](https://github.com/elnerribeiro/sezzle-test/pull/1#discussion_r4349087375) | Preserving native Enter activation left a mouse-focused keypad button in focus. Subsequent global shortcuts updated React state but Enter activated the old button, so the typed expression was not submitted. Moving focus into the field also means the physical `Shift+6` shortcut must still be translated there. | After a global expression key, a layout effect focuses the expression input and places the caret at the end. `Shift+6` inserts `^` at the caret even when the field is focused. Native Enter on deliberately focused buttons and links remains intact. Component tests cover mixed click/keyboard entry, exponent entry, and submission. |
+| [Validate API JSON envelopes at runtime](https://github.com/elnerribeiro/sezzle-test/pull/1#discussion_r4349093082) | TypeScript assertions do not validate network data. Null and arrays could be dereferenced, and an object-valued `correlation_id` could reach React as a child and crash the calculator. | Runtime guards require a non-array object, a finite numeric success result, and string error code/reference fields. Malformed shapes log one `invalid_response` event and render generic recoverable guidance with an unavailable reference. Component tests cover null and array envelopes, wrong result types, missing fields, and a non-string correlation ID. |
+| [Emit client events as JSON Lines](https://github.com/elnerribeiro/sezzle-test/pull/1#discussion_r4349097348) | LogTape's default console formatter uses styled, multi-argument output and did not satisfy the project's structured JSON log contract. | `clientLogger.ts` now configures the console sink with `jsonLinesFormatter`. A component-level test captures the actual console sink output, parses the JSON line, and verifies that it contains only the expected operation and error category fields. |
+
+For this follow-up, the relevant documentation was updated in `README.md`, `docs/architecture.md`, `docs/code-walkthrough.md`, and `docs/observability.md`. `docs/prompts.md` records the review requests.
+
+### Follow-up verification
+
+- `go test ./api/cmd/server -run '^TestShutdownDeadlineClosesServerAndReturnsFailure$' -count=100`: passed all 100 runs.
+- `go test -race ./... -cover`: passed; API package 90.8%, server lifecycle package 82.8%.
+- `go vet ./...`: passed.
+- `npm run lint`, `npm test`, `npm run build`, `npm run build-storybook`, `npm run test:bdd:validate`, and `npm audit --audit-level=high`: passed. Vitest ran 27 tests with 94.73% statement and 89.56% branch coverage; Storybook retained its existing large-chunk and Node deprecation warnings; audit found no vulnerabilities.
+- `npm run test:bdd`: passed all 20 scenarios and 157 steps across the required viewports.
+- `docker compose build` and `./scripts/containers.sh start`: passed.
+- External Edge on `http://localhost:3000/`: clicked keypad `2`, entered `Shift+6`, typed `3`, and submitted with Enter; the expression was `2^3` and the result was `8`.

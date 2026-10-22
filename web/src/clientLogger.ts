@@ -1,8 +1,8 @@
 // Configure one structured browser logger for handled calculator failures.
-import { configureSync, getConsoleSink, getLogger } from '@logtape/logtape';
+import { configureSync, getConsoleSink, getLogger, jsonLinesFormatter } from '@logtape/logtape';
 
 configureSync({
-  sinks: { console: getConsoleSink() },
+  sinks: { console: getConsoleSink({ formatter: jsonLinesFormatter }) },
   loggers: [
     { category: ['sezzle', 'calculator'], lowestLevel: 'error', sinks: ['console'] },
     { category: ['logtape', 'meta'], lowestLevel: 'fatal', sinks: [] },

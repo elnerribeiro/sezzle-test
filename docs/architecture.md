@@ -74,7 +74,7 @@ stateDiagram-v2
   Result --> Submitting: submit again
 ```
 
-Editing clears stale result and error feedback. During submission the input and keypad are disabled to prevent overlapping calculations, and the status reads “Calculating…”. A 10-second browser deadline aborts a stalled fetch, displays timeout recovery, and re-enables controls. A failed request leaves the expression visible so the user can edit and retry. Error details shown in the UI are selected from stable error codes; raw exceptions are not displayed.
+Editing clears stale result and error feedback. During submission the input and keypad are disabled to prevent overlapping calculations, and the status reads “Calculating…”. A 10-second browser deadline aborts a stalled fetch, displays timeout recovery, and re-enables controls. A failed request leaves the expression visible so the user can edit and retry. Response JSON is validated as an object envelope, finite numeric results and string error code/reference fields before UI state changes; malformed shapes follow the safe invalid-response path. Error details shown in the UI are selected from stable error codes; raw exceptions are not displayed.
 
 ## Calculation request sequence
 
@@ -103,6 +103,10 @@ sequenceDiagram
     API-->>Proxy: 4xx/422 { error: { code, correlation_id } }
     Proxy-->>UI: JSON error
     UI->>UI: Display recovery guidance and support reference
+  else Malformed JSON response
+    UI->>UI: Validate object, result and error field types
+    UI->>Log: Record invalid_response without response contents
+    UI->>UI: Display generic recoverable response message
   else Network failure
     Proxy--xUI: Request unavailable
     UI->>Log: Record operation and safe error category once
@@ -135,7 +139,7 @@ flowchart TD
   next -->|No| end([Done])
 ```
 
-Keyboard controls outside editable fields are digits and operators, `Shift+6` for exponentiation, `x` for multiplication, `s` for square root, `Backspace` to delete, `Escape` to clear, and `Enter` or `=` to calculate. Enter retains native activation for a focused button or link; when the expression field is focused, native form submission calculates. Client transport and response exceptions are logged once as structured LogTape events with only an operation and safe failure category.
+Keyboard controls outside editable fields are digits and operators, `Shift+6` for exponentiation, `x` for multiplication, `s` for square root, `Backspace` to delete, `Escape` to clear, and `Enter` or `=` to calculate. Enter retains native activation for a focused button or link; the first global expression key after keypad focus moves focus and the caret to the expression field, so following typing and Enter behave like direct field entry. `Shift+6` is also translated to exponentiation when the expression field has focus. When the expression field is focused, native form submission calculates. Client transport and malformed-response failures are logged once as LogTape JSON Lines records with only an operation and safe failure category.
 
 ## API process shutdown
 

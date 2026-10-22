@@ -2,7 +2,7 @@
  * Calculator page: keeps expression entry in React, submits complete expressions
  * to the Go API, and presents safe results and recovery messages.
  */
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { logClientFailure } from './clientLogger';
 import './app.css';
 
@@ -32,12 +32,30 @@ function describeError(code: string) {
   }
 }
 
+/** Narrow untrusted JSON values to objects before reading API envelope fields. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /** Render the full calculator shell, keypad, API feedback, and keyboard controls. */
 export default function App() {
   const [expression, setExpression] = useState('');
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<{ message: string; reference: string } | null>(null);
   const [pending, setPending] = useState(false);
+  const expressionInput = useRef<HTMLInputElement>(null);
+  const focusAfterKeyboardEntry = useRef(false);
+  const caretAfterKeyboardEntry = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    if (!focusAfterKeyboardEntry.current) return;
+    focusAfterKeyboardEntry.current = false;
+    const input = expressionInput.current;
+    input?.focus();
+    const caret = caretAfterKeyboardEntry.current ?? input?.value.length ?? 0;
+    caretAfterKeyboardEntry.current = null;
+    input?.setSelectionRange(caret, caret);
+  }, [expression]);
 
   /** Apply a keypad action to the expression and clear stale result/error feedback. */
   function enterKey(key: string) {
@@ -66,6 +84,10 @@ export default function App() {
       timedOut = true;
       controller.abort();
     }, requestTimeoutMs);
+    const invalidResponse = () => {
+      logClientFailure('invalid_response');
+      setError({ message: 'The response could not be read. Try again.', reference: 'unavailable' });
+    };
     try {
       const response = await fetch('/api/v1/calculate', {
         method: 'POST',
@@ -81,25 +103,27 @@ export default function App() {
           logClientFailure('request_timeout');
           setError({ message: 'The calculation timed out. Try again.', reference: 'unavailable' });
         } else {
-          logClientFailure('invalid_response');
-          setError({ message: 'The response could not be read. Try again.', reference: 'unavailable' });
+          invalidResponse();
         }
         return;
       }
       if (!response.ok) {
-        const details = payload as { error?: { code?: string; correlation_id?: string } };
+        const details = isRecord(payload) ? payload.error : null;
+        if (!isRecord(details) || typeof details.code !== 'string' || typeof details.correlation_id !== 'string') {
+          invalidResponse();
+          return;
+        }
         setError({
-          message: describeError(details.error?.code ?? ''),
-          reference: details.error?.correlation_id ?? 'unavailable',
+          message: describeError(details.code),
+          reference: details.correlation_id,
         });
         return;
       }
-      const data = payload as { result?: number };
-      if (typeof data.result !== 'number' || !Number.isFinite(data.result)) {
-        setError({ message: 'The response could not be read. Try again.', reference: 'unavailable' });
+      if (!isRecord(payload) || typeof payload.result !== 'number' || !Number.isFinite(payload.result)) {
+        invalidResponse();
         return;
       }
-      setResult(String(data.result));
+      setResult(String(payload.result));
     } catch {
       if (timedOut) {
         logClientFailure('request_timeout');
@@ -119,6 +143,18 @@ export default function App() {
     function handleKeyboard(event: KeyboardEvent) {
       if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing || pending) return;
       const target = event.target instanceof HTMLElement ? event.target : null;
+      if (target === expressionInput.current && event.shiftKey && event.code === 'Digit6') {
+        event.preventDefault();
+        const input = expressionInput.current;
+        const start = input?.selectionStart ?? expression.length;
+        const end = input?.selectionEnd ?? start;
+        setExpression((current) => `${current.slice(0, start)}^${current.slice(end)}`);
+        setResult(null);
+        setError(null);
+        caretAfterKeyboardEntry.current = start + 1;
+        focusAfterKeyboardEntry.current = true;
+        return;
+      }
       if (target?.closest('input, textarea, [contenteditable="true"]')) return;
       // Preserve native Enter activation for focused buttons and links.
       if (event.key === 'Enter' && target?.closest('button, a, [role="button"], select, summary')) return;
@@ -135,6 +171,7 @@ export default function App() {
 
       if (key) {
         event.preventDefault();
+        focusAfterKeyboardEntry.current = true;
         enterKey(key);
       } else if (event.key === 'Enter' || event.key === '=') {
         event.preventDefault();
@@ -180,6 +217,7 @@ export default function App() {
               <label htmlFor="expression">Expression</label>
               <input
                 id="expression"
+                ref={expressionInput}
                 aria-label="Expression"
                 value={expression}
                 onChange={(event) => { setExpression(event.target.value); setResult(null); setError(null); }}

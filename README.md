@@ -139,9 +139,11 @@ The BDD suite starts both services and runs every integrated scenario at `1080x1
 - UI errors tell users what action failed, how to recover, and the API correlation ID when available.
 - Each API submission has a 10-second browser timeout. While waiting, the status shows “Calculating…”; timeout recovery preserves the expression and re-enables controls.
 - Browser request exceptions use LogTape structured events containing only the operation and a stable error category. Expressions, raw exception messages, and response bodies are not logged.
+- The UI validates response envelopes before rendering them. Null, array, or wrong-typed JSON fields produce a recoverable invalid-response message instead of being rendered as data.
+- After clicking a keypad control, the first global keyboard entry moves focus and the caret to the expression field, so mixed mouse and keyboard input can be submitted with Enter.
 - Arithmetic rejects non-finite intermediate values immediately, including NaN/infinity that a later exponent could otherwise mask.
 - The initial keypad is the complete expression entry surface. It supports the four basic operations plus exponentiation, square root, and percentage.
-- The interface uses Sezzle purple (`#382757`) and mint (`#9FF4D9`). Outside the expression field, type digits and operators, `Shift+6` for exponentiation, `x` for multiply, `s` for square root, Backspace to delete, Escape to clear, and Enter or `=` to calculate. In the expression field, type normally and press Enter to calculate.
+- The interface uses Sezzle purple (`#382757`) and mint (`#9FF4D9`). Outside the expression field, type digits and operators, `Shift+6` for exponentiation, `x` for multiply, `s` for square root, Backspace to delete, Escape to clear, and Enter or `=` to calculate. In the expression field, type normally, use `Shift+6` for exponentiation, and press Enter to calculate.
 - The page credits the project as: “Calculator created by Elner Ribeiro as a Full Stack Engineer test for Sezzle.”
 
 ## Code documentation

@@ -9,7 +9,7 @@ The browser renders the React calculator, collects a complete expression, and se
 ## Go API (`api/`)
 
 - `api/cmd/server/main.go` reads the listen address from `API_ADDRESS` (with a local default), constructs the HTTP handler, waits for graceful shutdown to drain requests, and returns a nonzero process status on startup or shutdown failure.
-- `api/cmd/server/main_test.go` tests unexpected startup failure and sends SIGTERM during an active request to verify the process returns the response before exiting.
+- `api/cmd/server/main_test.go` tests unexpected startup failure, sends SIGTERM during an active request, and repeats the forced-shutdown deadline test to guard against listener/request startup races.
 - `api/handler.go` configures Gin routes and middleware. It limits request bodies, rejects malformed JSON, unknown fields, and trailing JSON, evaluates submitted expressions, and writes success or stable error responses. Recovery logging keeps panic details out of client responses.
 - `api/calculator.go` implements a recursive-descent parser. Its precedence layers are expression (`+`, `-`), term (`*`, `/`), unary signs, power (`^`, right-associative), postfix percentage (`%`), then number, parentheses, or `sqrt(...)`. It rejects malformed inputs and immediately rejects NaN/infinite intermediate results.
 - `api/calculator_test.go` exercises successful arithmetic, precedence, advanced operations, invalid expressions and requests, finite-intermediate regressions, health and route behavior, stable error responses, and panic recovery.
@@ -18,10 +18,10 @@ The browser renders the React calculator, collects a complete expression, and se
 
 - `web/index.html` provides the browser document, page title, and root element used by the React entry point.
 - `web/src/main.tsx` mounts the React application into the HTML root element.
-- `web/src/App.tsx` owns the calculator view and interaction state: expression entry, keypad mapping, API submission, a 10-second abortable request, visible pending state, result display, safe error messages, and keyboard shortcuts. Enter preserves native activation on focused buttons and links; the expression field keeps native text editing and form submission.
-- `web/src/clientLogger.ts` configures LogTape and logs only safe operation/error categories for handled transport and response failures.
+- `web/src/App.tsx` owns the calculator view and interaction state: expression entry, keypad mapping, API submission, a 10-second abortable request, visible pending state, result display, runtime validation of untrusted JSON response shapes, safe error messages, and keyboard shortcuts. Enter preserves native activation on focused buttons and links; global typing after keypad interaction moves focus and the caret into the expression field.
+- `web/src/clientLogger.ts` configures LogTape with a JSON Lines console formatter and logs only safe operation/error categories for handled transport and malformed-response failures.
 - `web/src/app.css` defines the responsive application shell, keypad and result styles, long-number wrapping, accessibility focus styles, and Sezzle color tokens.
-- `web/src/App.test.tsx` tests UI behavior with mocked HTTP responses, including native Enter activation, safe structured failure categories, timeout recovery, and error handling.
+- `web/src/App.test.tsx` tests UI behavior with mocked HTTP responses, including native Enter activation, mixed keypad/keyboard input, malformed JSON envelope recovery, emitted JSON log records, timeout recovery, and error handling.
 - `web/src/App.stories.tsx` provides the full-screen default Storybook story for visual component review.
 - `web/src/test-setup.ts` installs shared Vitest and Testing Library setup.
 - `web/src/vite-env.d.ts` provides Vite client type declarations.

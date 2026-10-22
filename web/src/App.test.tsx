@@ -61,10 +61,55 @@ describe('calculator', () => {
     }));
   });
 
+  it('moves focus to expression entry when keyboard input follows a keypad click', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ result: 5 }), { status: 200 }),
+    );
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '2' }));
+    await user.keyboard('+3');
+    expect(screen.getByLabelText('Expression')).toHaveValue('2+3');
+    expect(screen.getByLabelText('Expression')).toHaveFocus();
+    await user.keyboard('{Enter}');
+
+    expect(await screen.findByRole('status')).toHaveTextContent('5');
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/calculate', expect.objectContaining({
+      body: JSON.stringify({ expression: '2+3' }),
+    }));
+  });
+
+  it('moves focus to expression entry after a keypad clear before mixed input', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ result: 5 }), { status: 200 }),
+    );
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'C' }));
+    await user.keyboard('2+3{Enter}');
+
+    expect(await screen.findByRole('status')).toHaveTextContent('5');
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/calculate', expect.objectContaining({
+      body: JSON.stringify({ expression: '2+3' }),
+    }));
+  });
+
   it('maps the physical Shift+6 shortcut to exponentiation', () => {
     render(<App />);
     fireEvent.keyDown(window, { key: '6', code: 'Digit6', shiftKey: true });
     expect(screen.getByLabelText('Expression')).toHaveValue('^');
+  });
+
+  it('keeps Shift+6 exponent entry working after global input moves focus to the field', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.keyboard('2');
+    await user.keyboard('{Shift>}6{/Shift}3');
+
+    expect(screen.getByLabelText('Expression')).toHaveValue('2^3');
   });
 
   it('displays the project attribution below the ready status', () => {
@@ -128,13 +173,22 @@ describe('calculator', () => {
     expect(screen.getByRole('alert')).not.toHaveTextContent('network details');
   });
 
-  it('handles an unreadable success response without exposing raw details', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ result: 'not a number' }), { status: 200 }));
+  it.each([
+    { label: 'null success envelope', status: 200, payload: null },
+    { label: 'array success envelope', status: 200, payload: [] },
+    { label: 'wrong result type', status: 200, payload: { result: 'not a number' } },
+    { label: 'non-string correlation ID', status: 500, payload: { error: { code: 'internal_error', correlation_id: { private: 'details' } } } },
+    { label: 'missing error fields', status: 400, payload: { error: {} } },
+  ])('handles an invalid $label with safe recoverable feedback', async ({ status, payload }) => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status }));
+    const logFailure = vi.spyOn(clientLogger, 'logClientFailure');
     render(<App />);
     press('1', '=');
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/response could not be read/i);
     expect(screen.getByRole('alert')).toHaveTextContent('Support reference: unavailable');
+    expect(logFailure).toHaveBeenCalledTimes(1);
+    expect(logFailure).toHaveBeenCalledWith('invalid_response');
   });
 
   it('logs a malformed JSON response with only a safe failure category', async () => {
@@ -149,13 +203,16 @@ describe('calculator', () => {
     expect(JSON.stringify(logFailure.mock.calls)).not.toContain('private response details');
   });
 
-  it('uses a safe fallback when the API omits its error code and reference', async () => {
+  it('rejects an API error envelope when its code and reference are absent', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: {} }), { status: 400 }));
+    const logFailure = vi.spyOn(clientLogger, 'logClientFailure');
     render(<App />);
     press('1', '+', '1', '=');
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Check the expression and try again/i);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/response could not be read/i);
     expect(screen.getByRole('alert')).toHaveTextContent('Support reference: unavailable');
+    expect(logFailure).toHaveBeenCalledOnce();
+    expect(logFailure).toHaveBeenCalledWith('invalid_response');
   });
 
   it('lets Enter activate a focused clear button instead of submitting', async () => {
@@ -226,5 +283,20 @@ describe('calculator', () => {
     expect(logFailure).toHaveBeenCalledTimes(1);
     expect(logFailure).toHaveBeenCalledWith('network_failure');
     expect(JSON.stringify(logFailure.mock.calls)).not.toMatch(/private response details|1\+1/);
+  });
+
+  it('writes safe client failure fields as one JSON log record', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    clientLogger.logClientFailure('network_failure');
+
+    expect(consoleError).toHaveBeenCalledOnce();
+    expect(consoleError).toHaveBeenCalledWith(expect.any(String));
+    const [jsonRecord] = consoleError.mock.calls[0];
+    const record = JSON.parse(String(jsonRecord));
+    expect(record.level).toBe('ERROR');
+    expect(record.message).toContain('network_failure');
+    expect(record.properties).toEqual({ operation: 'calculate', errorType: 'network_failure' });
+    expect(String(jsonRecord)).not.toMatch(/expression|response body|private/);
   });
 });

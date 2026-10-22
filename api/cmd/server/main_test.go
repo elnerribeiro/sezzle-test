@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -70,9 +71,15 @@ func TestRunReturnsSuccessAfterSignal(t *testing.T) {
 func TestShutdownDeadlineClosesServerAndReturnsFailure(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseHandler := func() { releaseOnce.Do(func() { close(release) }) }
 	server := &http.Server{
 		Addr: reserveAddress(t),
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/healthz" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
 			close(started)
 			<-release
 			w.WriteHeader(http.StatusOK)
@@ -80,24 +87,61 @@ func TestShutdownDeadlineClosesServerAndReturnsFailure(t *testing.T) {
 	}
 	shutdown := make(chan struct{}, 1)
 	status := make(chan int, 1)
+	requestResult := make(chan error, 1)
+	var shutdownOnce sync.Once
+	signalShutdown := func() { shutdownOnce.Do(func() { shutdown <- struct{}{} }) }
+	serverFinished := false
+	t.Cleanup(func() {
+		releaseHandler()
+		signalShutdown()
+		_ = server.Close()
+		if serverFinished {
+			return
+		}
+		select {
+		case <-status:
+		case <-time.After(2 * time.Second):
+			t.Error("server goroutine did not stop during cleanup")
+		}
+	})
 	go func() { status <- serveWithSignal(server, shutdown, 10*time.Millisecond) }()
-	go func() { _, _ = http.Get("http://" + server.Addr) }()
+	waitForServer(t, "http://"+server.Addr+"/healthz")
+	go func() {
+		response, err := http.Get("http://" + server.Addr + "/blocked")
+		if err != nil {
+			requestResult <- err
+			return
+		}
+		response.Body.Close()
+		requestResult <- nil
+	}()
 	select {
 	case <-started:
 	case <-time.After(2 * time.Second):
-		close(release)
 		t.Fatal("request handler did not start")
+	case err := <-requestResult:
+		t.Fatalf("request failed before handler started: %v", err)
 	}
-	shutdown <- struct{}{}
+	signalShutdown()
 	select {
 	case got := <-status:
+		serverFinished = true
 		if got != 1 {
 			t.Fatalf("shutdown status = %d, want 1 after deadline", got)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("shutdown did not finish after its deadline")
 	}
-	close(release)
+	releaseHandler()
+	select {
+	case err := <-requestResult:
+		// The timed-out graceful shutdown force-closes active connections. The
+		// request result may therefore be an expected transport error; consuming
+		// it proves the request goroutine has exited instead of leaking.
+		_ = err
+	case <-time.After(2 * time.Second):
+		t.Fatal("request did not finish after handler release")
+	}
 }
 
 // TestSignalWaitsForActiveRequest verifies shutdown drains an in-flight body
